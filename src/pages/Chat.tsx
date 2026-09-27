@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext } from 'react';
-import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X, AlertCircle, Keyboard } from 'lucide-react';
+import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X, AlertCircle, Info } from 'lucide-react';
 import { schemes, states } from '../data/mockData';
 import { speak, stopSpeaking } from '../services/audioService';
 import { 
@@ -9,7 +9,6 @@ import {
   isLanguageSupportedForRecognition,
   isSecureContext
 } from '../services/speechRecognition';
-import VoiceInputModal from '../components/VoiceInputModal';
 import { AppContext } from '../App';
 import { 
   getAllChats, 
@@ -37,7 +36,6 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechError, setSpeechError] = useState('');
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Welcome message - personalized if user has profile
@@ -72,11 +70,9 @@ export default function Chat() {
         setCurrentChatId(chat.id);
         setMessages(chat.messages);
       } else {
-        // Active chat is empty or doesn't exist, start new
         handleNewChat();
       }
     } else {
-      // No active chat, start new
       handleNewChat();
     }
   }, []);
@@ -85,7 +81,6 @@ export default function Chat() {
   useEffect(() => {
     if (currentChatId && messages.length > 0) {
       saveMessages(currentChatId, messages);
-      // Refresh chat history to update titles
       setChatHistory(getAllChats());
     }
   }, [messages, currentChatId]);
@@ -98,7 +93,7 @@ export default function Chat() {
     setCurrentChatId(newChat.id);
     setMessages([WELCOME_MESSAGE]);
     setChatHistory(getAllChats());
-    setSidebarOpen(false); // Close sidebar on mobile
+    setSidebarOpen(false);
   };
 
   const handleSelectChat = (chatId: string) => {
@@ -110,17 +105,16 @@ export default function Chat() {
       setCurrentChatId(chat.id);
       setMessages(chat.messages);
       setActiveChatId(chat.id);
-      setSidebarOpen(false); // Close sidebar on mobile
+      setSidebarOpen(false);
     }
   };
 
   const handleDeleteChat = (chatId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent selecting the chat
+    e.stopPropagation();
     
     if (confirm('Delete this chat?')) {
       deleteChat(chatId);
       
-      // If deleted current chat, switch to another or create new
       if (chatId === currentChatId) {
         const remaining = getAllChats();
         if (remaining.length > 0) {
@@ -152,78 +146,52 @@ export default function Chat() {
   const getAIResponse = (query: string): string => {
     const q = query.toLowerCase();
     
-    // Check if user is asking about eligibility
     if (q.includes('eligib') || q.includes('qualify') || q.includes('eligible') || q.includes('check my')) {
       if (!user) {
         return `I'd love to check your eligibility! However, I don't have your profile details yet.\n\nPlease set up your profile first by:\n1. Click on **Profile** in the navigation menu\n2. Fill in your details (age, income, state, occupation, etc.)\n3. Save your profile\n4. Come back here and ask me to check your eligibility again!\n\nOr you can go directly to **My Alerts** to see schemes matched for you.`;
       }
       
-      // User has profile - check eligibility based on their details
       const stateName = states.find(s => s.code === user.state)?.name || user.state;
       const matchedSchemes = schemes.filter(scheme => {
-        // Check state match
         const stateMatch = scheme.state_code === 'ALL' || scheme.state_code === user.state;
-        
-        // Check category match with interests
         const interestMatch = user.interests.some(interest => 
           scheme.category.toLowerCase().includes(interest.toLowerCase()) ||
           interest.toLowerCase().includes(scheme.category.toLowerCase())
         );
-        
-        // Check income (rough heuristic)
         const incomeMatch = user.income < 500000;
-        
-        // Check age
         const ageMatch = user.age >= 18 && user.age <= 65;
         
         return stateMatch && (interestMatch || incomeMatch || ageMatch);
       }).slice(0, 5);
       
       if (matchedSchemes.length === 0) {
-        return `Based on your profile:\n\n👤 **Name:** ${user.name}\n🎂 **Age:** ${user.age}\n📍 **State:** ${stateName}\n💰 **Income:** ₹${user.income.toLocaleString()}/year\n💼 **Occupation:** ${user.occupation}\n\nI couldn't find schemes that match your criteria right now. This could be because:\n• Your income might be above the limit for most schemes\n• The schemes in your state might have different eligibility criteria\n\nTry updating your interests in your profile, or browse the **Scheme Directory** to explore more options!`;
+        return `Based on your profile:\n\n👤 **Name:** ${user.name}\n🎂 **Age:** ${user.age}\n📍 **State:** ${stateName}\n💰 **Income:** ₹${user.income.toLocaleString()}/year\n\nI couldn't find schemes that match your criteria right now. Try updating your interests in your profile, or browse the **Scheme Directory** to explore more options!`;
       }
       
-      return `Great! Based on your profile, here are schemes you're likely eligible for:\n\n👤 **Your Profile:**\n• Age: ${user.age}\n• State: ${stateName}\n• Income: ₹${user.income.toLocaleString()}/year\n• Occupation: ${user.occupation}\n• Interests: ${user.interests.join(', ')}\n\n🎯 **Matched Schemes (${matchedSchemes.length}):**\n\n${matchedSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Category: ${s.category}\n  ${s.benefits.substring(0, 100)}...\n  [View Details →](/schemes/${s.id})`).join('\n\n')}\n\n💡 **Next Steps:**\n• Click on any scheme to see full details and eligibility criteria\n• Check the **My Alerts** page for a complete list with eligibility scores\n• Use the step tracker to track your application progress`;
+      return `Great! Based on your profile, here are schemes you're likely eligible for:\n\n👤 **Your Profile:**\n• Age: ${user.age}\n• State: ${stateName}\n• Income: ₹${user.income.toLocaleString()}/year\n• Occupation: ${user.occupation}\n\n🎯 **Matched Schemes (${matchedSchemes.length}):**\n\n${matchedSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Category: ${s.category}\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n💡 **Next Steps:**\n• Click on any scheme to see full details\n• Check the **My Alerts** page for complete list with scores\n• Use the step tracker for application progress`;
     }
     
     if (q.includes('scheme') && (q.includes('farmer') || q.includes('agriculture') || q.includes('kisan'))) {
       const farmerSchemes = schemes.filter(s => s.category === 'Agriculture');
-      return `Here are some agriculture-related schemes for farmers:\n\n${farmerSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user ? `Based on your occupation (${user.occupation}), you might be eligible for these! Ask me to "check my eligibility" for more details.` : 'Would you like more details about any specific scheme?'}`;
+      return `Here are agriculture-related schemes for farmers:\n\n${farmerSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user ? `Based on your occupation (${user.occupation}), you might be eligible! Ask me to "check my eligibility".` : 'Would you like more details?'}`;
     }
     
     if (q.includes('health') || q.includes('medical') || q.includes('insurance') || q.includes('ayushman')) {
       const healthSchemes = schemes.filter(s => s.category === 'Healthcare');
-      return `Here are healthcare schemes available:\n\n${healthSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Benefits: ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user ? `I can check your eligibility for these based on your profile! Just ask me to "check my eligibility".` : 'I can help you check eligibility for any of these. Just tell me your age, income, and state!'}`;
+      return `Here are healthcare schemes:\n\n${healthSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Benefits: ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user ? 'I can check your eligibility! Just ask "check my eligibility".' : 'Tell me your age, income, and state to check eligibility!'}`;
     }
     
     if (q.includes('women') || q.includes('girl') || q.includes('lady')) {
       const womenSchemes = schemes.filter(s => s.category.includes('Women'));
-      return `Here are schemes for women:\n\n${womenSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user && user.gender === 'female' ? `Based on your profile, you might be eligible for these! Ask me to "check my eligibility" to see which ones match.` : 'Would you like to know about eligibility for any of these?'}`;
-    }
-    
-    if (q.includes('document') || q.includes('pdf') || q.includes('legal')) {
-      return `I can help you with documents! Here's what I can do:\n\n📄 **Document Simplifier** - Upload any PDF or legal document and I'll:\n• Explain it in simple language (like explaining to a 10-year-old)\n• Translate it to your preferred Indian language\n• Generate an audio summary you can listen to\n• Answer any questions about the document\n\nGo to the "Document Simplifier" page to upload your document!`;
+      return `Here are schemes for women:\n\n${womenSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}`;
     }
     
     if (q.includes('hello') || q.includes('hi') || q.includes('namaste') || q.includes('namaskar')) {
       const greeting = user ? `Namaste ${user.name}! 🙏` : 'Namaste! 🙏';
-      return `${greeting} How can I help you today? You can ask me about government schemes, upload documents for simplification, or check your eligibility for various programs.`;
-    }
-    
-    if (q.includes('apply') || q.includes('application')) {
-      return `I can guide you through the application process for any scheme! Here's how it works:\n\n1. **Choose a scheme** - Browse the Scheme Directory\n2. **Check eligibility** - I'll help you understand if you qualify\n3. **Step-by-step guide** - I'll break down the application process into simple steps\n4. **Track progress** - Mark steps as you complete them\n\nWhich scheme would you like to apply for?`;
+      return `${greeting} How can I help you today?`;
     }
 
-    const matchedScheme = schemes.find(s => 
-      s.scheme_name.toLowerCase().includes(q) || 
-      s.category.toLowerCase().includes(q)
-    );
-    
-    if (matchedScheme) {
-      return `I found a scheme that matches your query:\n\n**${matchedScheme.scheme_name}** (${matchedScheme.state})\n\n📋 **Category:** ${matchedScheme.category}\n💰 **Benefits:** ${matchedScheme.benefits.substring(0, 150)}...\n\n✅ **Eligibility:** ${matchedScheme.eligibility.substring(0, 150)}...\n\n${user ? `Would you like me to check your eligibility for this scheme? Just ask "check my eligibility".` : 'Would you like to see the full details, check your eligibility, or get the step-by-step application guide?'}`;
-    }
-    
-    return `I understand you're asking about "${query}". Let me help you with that.\n\nI can assist you with:\n• 🏛️ **Government Schemes** - Browse by state, category, or check eligibility\n• 📄 **Document Simplification** - Upload PDFs for AI-powered explanation\n• 🗣️ **Voice Interaction** - Speak in your language\n• 📊 **Eligibility Check** - Get a score based on your profile\n\n${!user ? '💡 Tip: Set up your profile first to get personalized scheme recommendations!' : ''}\n\nCould you please be more specific about what you need help with?`;
+    return `I can help you with:\n• 🏛️ Government Schemes\n• 📄 Document Simplification\n• 📊 Eligibility Check\n• 🗣️ Voice Interaction\n\nWhat would you like to know?`;
   };
 
   const handleSend = () => {
@@ -253,44 +221,39 @@ export default function Chat() {
 
   const handleVoiceInput = async () => {
     if (isRecording) {
-      // Stop listening
       stopListening();
       setIsRecording(false);
       setInterimTranscript('');
       return;
     }
 
-    // If not in secure context, show the modal directly (voice won't work over HTTP)
+    // Check prerequisites
     if (!isSecureContext()) {
-      setShowVoiceModal(true);
+      setSpeechError('⚠️ Voice input requires HTTPS. Please run the app locally with "npm run dev" or deploy with HTTPS.');
+      setTimeout(() => setSpeechError(''), 10000);
       return;
     }
 
-    // Check if speech recognition is available
     if (!isSpeechRecognitionAvailable()) {
-      // Show modal as fallback
-      setShowVoiceModal(true);
+      setSpeechError('Speech recognition not supported. Please use Chrome or Edge browser.');
+      setTimeout(() => setSpeechError(''), 8000);
       return;
     }
 
-    // Check if selected language is supported
     if (!isLanguageSupportedForRecognition(chatLang)) {
-      // Show modal with current language
-      setShowVoiceModal(true);
+      setSpeechError(`Language not supported for speech. Try English or Hindi.`);
+      setTimeout(() => setSpeechError(''), 5000);
       return;
     }
 
-    // Clear previous errors
     setSpeechError('');
     setInterimTranscript('');
     setIsRecording(true);
 
-    // Start listening with the selected language
     const started = await startListening(
       chatLang,
       (text, isFinal) => {
         if (isFinal) {
-          // Final transcription - send as message
           setInterimTranscript('');
           setIsRecording(false);
           
@@ -302,7 +265,6 @@ export default function Chat() {
           };
           setMessages(prev => [...prev, userMessage]);
           
-          // Get AI response
           setIsProcessing(true);
           setTimeout(() => {
             const response = getAIResponse(text);
@@ -316,7 +278,6 @@ export default function Chat() {
             scrollToBottom();
           }, 1000);
         } else {
-          // Interim result - show live transcription
           setInterimTranscript(text);
         }
       },
@@ -324,12 +285,10 @@ export default function Chat() {
         console.error('Speech recognition error:', error);
         setIsRecording(false);
         setInterimTranscript('');
-        
-        // Show the modal as a fallback instead of just an error
-        setShowVoiceModal(true);
+        setSpeechError(error);
+        setTimeout(() => setSpeechError(''), 8000);
       },
       () => {
-        // Recognition ended
         setIsRecording(false);
         setInterimTranscript('');
       }
@@ -337,34 +296,9 @@ export default function Chat() {
 
     if (!started) {
       setIsRecording(false);
-      // Show the voice input modal as a fallback
-      setShowVoiceModal(true);
+      setSpeechError('Failed to start. Check microphone permissions.');
+      setTimeout(() => setSpeechError(''), 5000);
     }
-  };
-
-  // Handle voice input from the modal (fallback when speech recognition isn't available)
-  const handleVoiceModalSubmit = (text: string, language: string) => {
-    const userMessage: ChatMessage = { 
-      role: 'user', 
-      content: text, 
-      isVoice: true,
-      timestamp: Date.now()
-    };
-    setMessages(prev => [...prev, userMessage]);
-    
-    // Get AI response
-    setIsProcessing(true);
-    setTimeout(() => {
-      const response = getAIResponse(text);
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: response,
-        timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      setIsProcessing(false);
-      scrollToBottom();
-    }, 1000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -379,7 +313,7 @@ export default function Chat() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">💬 Ask Sahayak</h1>
-          <p className="text-gray-600">Chat with AI about schemes, documents, and eligibility — via text or voice</p>
+          <p className="text-gray-600">Chat with AI about schemes, documents, and eligibility</p>
         </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -389,29 +323,33 @@ export default function Chat() {
         </button>
       </div>
 
-      {/* Voice Input Info - shown when not in secure context */}
+      {/* Voice Input Instructions */}
       {!isSecureContext() && (
-        <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-          <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <Keyboard size={20} className="text-blue-600" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-900 mb-1">🎤 Voice Input Available!</p>
-            <p className="text-sm text-blue-800">
-              Click the <strong>microphone button</strong> below to type your question in <strong>any Indian language</strong> (Hindi, Tamil, Telugu, Bengali, etc). Your question will be processed just like voice input!
-            </p>
-            <p className="text-xs text-blue-700 mt-2">
-              💡 Tip: For live speech recognition, run the app locally with <code className="bg-blue-100 px-1 rounded">npm run dev</code> or deploy with HTTPS.
-            </p>
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <Info size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900 mb-1">🎤 Voice Input Setup</p>
+              <p className="text-sm text-amber-800 mb-2">
+                Voice input requires a secure connection (HTTPS). To enable voice input:
+              </p>
+              <div className="bg-amber-100 rounded-lg p-3 text-xs text-amber-900 font-mono">
+                <p className="mb-1">Run locally:</p>
+                <code className="block bg-white px-2 py-1 rounded">npm run dev</code>
+                <p className="mt-2">Then open: <strong>http://localhost:5173</strong></p>
+              </div>
+              <p className="text-xs text-amber-700 mt-2">
+                ✅ You can still chat by typing below!
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       <div className="flex gap-4">
-        {/* Sidebar - Chat History */}
+        {/* Sidebar */}
         <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block w-full lg:w-72 flex-shrink-0`}>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden sticky top-20">
-            {/* New Chat Button */}
             <button
               onClick={handleNewChat}
               className="w-full p-4 bg-gradient-to-r from-saffron to-saffron-dark text-white font-semibold flex items-center justify-center gap-2 hover:from-saffron-dark hover:to-saffron transition-all"
@@ -420,7 +358,6 @@ export default function Chat() {
               New Chat
             </button>
 
-            {/* Chat List */}
             <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
               {chatHistory.length === 0 ? (
                 <div className="p-6 text-center text-gray-400 text-sm">
@@ -451,7 +388,6 @@ export default function Chat() {
                         <button
                           onClick={(e) => handleDeleteChat(chat.id, e)}
                           className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-all"
-                          title="Delete chat"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -464,96 +400,70 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* Main Chat Area */}
+        {/* Chat Area */}
         <div className="flex-1 card flex flex-col h-[600px]">
-          {/* Chat Messages */}
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                <p>Start a conversation...</p>
-              </div>
-            ) : (
-              messages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-2' : 'order-1'}`}>
-                    <div className={`px-4 py-3 rounded-2xl ${
-                      msg.role === 'user'
-                        ? 'bg-saffron text-white rounded-br-sm'
-                        : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                    }`}>
-                      {msg.isVoice && (
-                        <span className="text-xs opacity-75 flex items-center gap-1 mb-1">
-                          <Mic size={12} /> Voice input (transcribed)
-                        </span>
-                      )}
-                      <div className="text-sm whitespace-pre-line">{msg.content}</div>
-                    </div>
-                    {msg.role === 'assistant' && (
-                      <button 
-                        onClick={() => handleSpeakMessage(msg.content, i)}
-                        className={`mt-1 ml-2 transition-colors ${
-                          speakingMsgIdx === i 
-                            ? 'text-green-600 animate-pulse' 
-                            : 'text-gray-400 hover:text-saffron'
-                        }`}
-                        title={speakingMsgIdx === i ? 'Stop speaking' : 'Listen to this message'}
-                      >
-                        {speakingMsgIdx === i ? <Square size={14} /> : <Volume2 size={14} />}
-                      </button>
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%]`}>
+                  <div className={`px-4 py-3 rounded-2xl ${
+                    msg.role === 'user'
+                      ? 'bg-saffron text-white rounded-br-sm'
+                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                  }`}>
+                    {msg.isVoice && (
+                      <span className="text-xs opacity-75 flex items-center gap-1 mb-1">
+                        <Mic size={12} /> Voice input
+                      </span>
                     )}
+                    <div className="text-sm whitespace-pre-line">{msg.content}</div>
                   </div>
+                  {msg.role === 'assistant' && (
+                    <button 
+                      onClick={() => handleSpeakMessage(msg.content, i)}
+                      className={`mt-1 ml-2 transition-colors ${
+                        speakingMsgIdx === i ? 'text-green-600' : 'text-gray-400 hover:text-saffron'
+                      }`}
+                    >
+                      {speakingMsgIdx === i ? <Square size={14} /> : <Volume2 size={14} />}
+                    </button>
+                  )}
                 </div>
-              ))
-            )}
+              </div>
+            ))}
             
             {isProcessing && (
               <div className="flex justify-start">
                 <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span className="text-sm">Sahayak is thinking...</span>
-                  </div>
+                  <Loader2 size={16} className="animate-spin text-gray-500" />
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Speech Error - kept as fallback for unexpected errors */}
+          {/* Error Message */}
           {speechError && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-start gap-2">
-              <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-amber-800">{speechError}</span>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+              <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-red-800">{speechError}</span>
             </div>
           )}
 
-          {/* Recording indicator with live transcription */}
+          {/* Recording Indicator */}
           {isRecording && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                 <span className="text-sm font-medium text-red-700">
-                  🎤 Listening in {chatLang === 'en' ? 'English' : chatLang === 'hi' ? 'Hindi' : chatLang === 'ta' ? 'Tamil' : chatLang === 'te' ? 'Telugu' : chatLang === 'bn' ? 'Bengali' : chatLang === 'mr' ? 'Marathi' : chatLang === 'gu' ? 'Gujarati' : chatLang === 'kn' ? 'Kannada' : chatLang === 'ml' ? 'Malayalam' : chatLang === 'pa' ? 'Punjabi' : chatLang}...
+                  🎤 Listening in {chatLang === 'en' ? 'English' : chatLang === 'hi' ? 'Hindi' : chatLang}...
                 </span>
-                <div className="flex-1 flex items-center justify-end gap-1">
-                  {[...Array(6)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="w-1 bg-red-400 rounded-full animate-pulse"
-                      style={{ height: `${10 + Math.random() * 16}px`, animationDelay: `${i * 0.15}s` }}
-                    ></div>
-                  ))}
-                </div>
               </div>
               {interimTranscript && (
                 <div className="mt-2 p-2 bg-white/60 rounded-lg">
-                  <p className="text-sm text-gray-700 italic">
-                    "{interimTranscript}"
-                  </p>
+                  <p className="text-sm text-gray-700 italic">"{interimTranscript}"</p>
                 </div>
-              )}
-              {!interimTranscript && (
-                <p className="text-xs text-red-600 mt-1">Speak now... (click mic to stop)</p>
               )}
             </div>
           )}
@@ -562,13 +472,7 @@ export default function Chat() {
           <div className="flex items-end gap-2 pt-3 border-t">
             <button
               onClick={handleVoiceInput}
-              title={
-                isRecording 
-                  ? 'Stop recording' 
-                  : !isSecureContext()
-                    ? 'Click to type in your language (Hindi, Tamil, etc.)'
-                    : 'Click to speak or type in your language'
-              }
+              title={isRecording ? 'Stop recording' : 'Click to speak'}
               className={`p-3 rounded-full transition-all ${
                 isRecording
                   ? 'bg-red-500 text-white animate-pulse'
@@ -578,16 +482,14 @@ export default function Chat() {
               {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
             
-            <div className="flex-1 relative">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your question here, or click 🎤 to type in Hindi/Tamil/Telugu..."
-                rows={1}
-                className="input-field resize-none"
-              />
-            </div>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your question here..."
+              rows={1}
+              className="input-field resize-none flex-1"
+            />
             
             <button
               onClick={handleSend}
@@ -598,12 +500,12 @@ export default function Chat() {
             </button>
           </div>
 
-          {/* Quick actions + Language selector */}
+          {/* Quick Actions */}
           <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
-            {['Schemes for farmers', 'Health schemes', 'Women schemes', 'How to apply?', 'Check my eligibility'].map((q) => (
+            {['Check my eligibility', 'Schemes for farmers', 'Health schemes', 'Women schemes'].map((q) => (
               <button
                 key={q}
-                onClick={() => { setInput(q); }}
+                onClick={() => setInput(q)}
                 className="px-3 py-1.5 bg-gray-50 hover:bg-saffron/10 hover:text-saffron rounded-full text-xs font-medium text-gray-600 transition-all"
               >
                 {q}
@@ -615,7 +517,6 @@ export default function Chat() {
                 value={chatLang}
                 onChange={(e) => setChatLang(e.target.value)}
                 className="text-xs border rounded px-2 py-1 bg-white"
-                title="Audio language for responses"
               >
                 <option value="en">🔊 English</option>
                 <option value="hi">🔊 हिंदी</option>
@@ -632,15 +533,6 @@ export default function Chat() {
           </div>
         </div>
       </div>
-
-      {/* Voice Input Modal - Fallback when speech recognition isn't available */}
-      <VoiceInputModal
-        isOpen={showVoiceModal}
-        onClose={() => setShowVoiceModal(false)}
-        onSubmit={handleVoiceModalSubmit}
-        initialLanguage={chatLang}
-        reason={!isSecureContext() ? 'http' : 'unsupported'}
-      />
     </div>
   );
 }

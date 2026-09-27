@@ -4,6 +4,19 @@
 
 Sahayak is a complete civic tech web application that helps Indian citizens understand government schemes, simplify legal documents, and navigate application processes — all in their local language. Built entirely with **free, open-source AI models** that run locally.
 
+## 🎤 Voice Input
+
+**Important:** Voice input requires running the app locally (localhost) or deploying with HTTPS due to browser security requirements.
+
+### Quick Start for Voice Input:
+```bash
+npm install
+npm run dev
+# Open http://localhost:5173 in Chrome or Edge
+```
+
+See [VOICE_INPUT_GUIDE.md](../VOICE_INPUT_GUIDE.md) for detailed instructions.
+
 ---
 
 ## 🌟 Features
