@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext } from 'react';
-import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X, AlertCircle } from 'lucide-react';
+import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X, AlertCircle, Keyboard } from 'lucide-react';
 import { schemes, states } from '../data/mockData';
 import { speak, stopSpeaking } from '../services/audioService';
 import { 
@@ -7,9 +7,9 @@ import {
   stopListening, 
   isSpeechRecognitionAvailable,
   isLanguageSupportedForRecognition,
-  isSecureContext,
-  getDiagnosticMessage
+  isSecureContext
 } from '../services/speechRecognition';
+import VoiceInputModal from '../components/VoiceInputModal';
 import { AppContext } from '../App';
 import { 
   getAllChats, 
@@ -37,6 +37,7 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechError, setSpeechError] = useState('');
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Welcome message - personalized if user has profile
@@ -259,24 +260,23 @@ export default function Chat() {
       return;
     }
 
-    // Check if speech recognition is available
-    if (!isSpeechRecognitionAvailable()) {
-      setSpeechError('Speech recognition is not supported in your browser. Please use Google Chrome or Microsoft Edge.');
-      setTimeout(() => setSpeechError(''), 8000);
+    // If not in secure context, show the modal directly (voice won't work over HTTP)
+    if (!isSecureContext()) {
+      setShowVoiceModal(true);
       return;
     }
 
-    // Check if we're in a secure context (HTTPS required)
-    if (!isSecureContext()) {
-      setSpeechError('⚠️ Speech recognition requires HTTPS. The app is currently running on HTTP. Please access it via HTTPS or localhost for voice input to work. You can still type your questions below.');
-      setTimeout(() => setSpeechError(''), 10000);
+    // Check if speech recognition is available
+    if (!isSpeechRecognitionAvailable()) {
+      // Show modal as fallback
+      setShowVoiceModal(true);
       return;
     }
 
     // Check if selected language is supported
     if (!isLanguageSupportedForRecognition(chatLang)) {
-      setSpeechError(`Speech recognition for this language is not supported. Try English or Hindi.`);
-      setTimeout(() => setSpeechError(''), 5000);
+      // Show modal with current language
+      setShowVoiceModal(true);
       return;
     }
 
@@ -325,9 +325,8 @@ export default function Chat() {
         setIsRecording(false);
         setInterimTranscript('');
         
-        // Show the error message directly from the service
-        setSpeechError(error);
-        setTimeout(() => setSpeechError(''), 8000);
+        // Show the modal as a fallback instead of just an error
+        setShowVoiceModal(true);
       },
       () => {
         // Recognition ended
@@ -338,15 +337,34 @@ export default function Chat() {
 
     if (!started) {
       setIsRecording(false);
-      // Get diagnostic message
-      const diagnostic = getDiagnosticMessage();
-      if (diagnostic) {
-        setSpeechError(diagnostic);
-      } else {
-        setSpeechError('Failed to start speech recognition. Please check your microphone permissions and try again.');
-      }
-      setTimeout(() => setSpeechError(''), 8000);
+      // Show the voice input modal as a fallback
+      setShowVoiceModal(true);
     }
+  };
+
+  // Handle voice input from the modal (fallback when speech recognition isn't available)
+  const handleVoiceModalSubmit = (text: string, language: string) => {
+    const userMessage: ChatMessage = { 
+      role: 'user', 
+      content: text, 
+      isVoice: true,
+      timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Get AI response
+    setIsProcessing(true);
+    setTimeout(() => {
+      const response = getAIResponse(text);
+      const assistantMessage: ChatMessage = {
+        role: 'assistant',
+        content: response,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      setIsProcessing(false);
+      scrollToBottom();
+    }, 1000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -371,20 +389,19 @@ export default function Chat() {
         </button>
       </div>
 
-      {/* HTTPS Notice - shown when not in secure context */}
+      {/* Voice Input Info - shown when not in secure context */}
       {!isSecureContext() && (
-        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+        <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
           <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <AlertCircle size={20} className="text-blue-600" />
+            <Keyboard size={20} className="text-blue-600" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-900 mb-1">📝 Voice Input Notice</p>
+            <p className="text-sm font-semibold text-blue-900 mb-1">🎤 Voice Input Available!</p>
             <p className="text-sm text-blue-800">
-              Voice input requires a secure connection (HTTPS). The app is currently running on HTTP.
-              <strong> You can still chat by typing your questions below!</strong>
+              Click the <strong>microphone button</strong> below to type your question in <strong>any Indian language</strong> (Hindi, Tamil, Telugu, Bengali, etc). Your question will be processed just like voice input!
             </p>
             <p className="text-xs text-blue-700 mt-2">
-              💡 For full voice support: Run the app locally with <code className="bg-blue-100 px-1 rounded">npm run dev</code> (uses localhost) or deploy with HTTPS.
+              💡 Tip: For live speech recognition, run the app locally with <code className="bg-blue-100 px-1 rounded">npm run dev</code> or deploy with HTTPS.
             </p>
           </div>
         </div>
@@ -502,22 +519,11 @@ export default function Chat() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Speech Error */}
+          {/* Speech Error - kept as fallback for unexpected errors */}
           {speechError && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3 flex items-start gap-3">
-              <AlertCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm text-amber-900 font-medium mb-1">Voice Input Issue</p>
-                <p className="text-sm text-amber-800">{speechError}</p>
-                {!isSecureContext() && (
-                  <div className="mt-3 p-3 bg-amber-100 rounded-lg">
-                    <p className="text-xs text-amber-900">
-                      <strong>💡 Tip:</strong> You can still use the chat by typing your questions in the text box below. 
-                      For voice input to work, the app needs to be served over HTTPS.
-                    </p>
-                  </div>
-                )}
-              </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+              <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-amber-800">{speechError}</span>
             </div>
           )}
 
@@ -556,6 +562,13 @@ export default function Chat() {
           <div className="flex items-end gap-2 pt-3 border-t">
             <button
               onClick={handleVoiceInput}
+              title={
+                isRecording 
+                  ? 'Stop recording' 
+                  : !isSecureContext()
+                    ? 'Click to type in your language (Hindi, Tamil, etc.)'
+                    : 'Click to speak or type in your language'
+              }
               className={`p-3 rounded-full transition-all ${
                 isRecording
                   ? 'bg-red-500 text-white animate-pulse'
@@ -570,7 +583,7 @@ export default function Chat() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type your question or use voice..."
+                placeholder="Type your question here, or click 🎤 to type in Hindi/Tamil/Telugu..."
                 rows={1}
                 className="input-field resize-none"
               />
@@ -619,6 +632,15 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      {/* Voice Input Modal - Fallback when speech recognition isn't available */}
+      <VoiceInputModal
+        isOpen={showVoiceModal}
+        onClose={() => setShowVoiceModal(false)}
+        onSubmit={handleVoiceModalSubmit}
+        initialLanguage={chatLang}
+        reason={!isSecureContext() ? 'http' : 'unsupported'}
+      />
     </div>
   );
 }
