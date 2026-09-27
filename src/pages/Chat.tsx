@@ -6,7 +6,9 @@ import {
   startListening, 
   stopListening, 
   isSpeechRecognitionAvailable,
-  isLanguageSupportedForRecognition 
+  isLanguageSupportedForRecognition,
+  isSecureContext,
+  getDiagnosticMessage
 } from '../services/speechRecognition';
 import { AppContext } from '../App';
 import { 
@@ -259,8 +261,15 @@ export default function Chat() {
 
     // Check if speech recognition is available
     if (!isSpeechRecognitionAvailable()) {
-      setSpeechError('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
-      setTimeout(() => setSpeechError(''), 5000);
+      setSpeechError('Speech recognition is not supported in your browser. Please use Google Chrome or Microsoft Edge.');
+      setTimeout(() => setSpeechError(''), 8000);
+      return;
+    }
+
+    // Check if we're in a secure context (HTTPS required)
+    if (!isSecureContext()) {
+      setSpeechError('⚠️ Speech recognition requires HTTPS. The app is currently running on HTTP. Please access it via HTTPS or localhost for voice input to work. You can still type your questions below.');
+      setTimeout(() => setSpeechError(''), 10000);
       return;
     }
 
@@ -316,24 +325,9 @@ export default function Chat() {
         setIsRecording(false);
         setInterimTranscript('');
         
-        let errorMsg = 'Speech recognition failed. ';
-        if (error === 'no-speech') {
-          errorMsg += 'No speech was detected. Please try again.';
-        } else if (error === 'audio-capture') {
-          errorMsg += 'No microphone was found. Please check your microphone.';
-        } else if (error === 'not-allowed') {
-          errorMsg += 'Microphone access was denied. Please allow microphone access in your browser settings.';
-        } else if (error === 'network') {
-          errorMsg += 'Network error occurred. Please check your connection.';
-        } else if (error === 'aborted') {
-          // User cancelled, don't show error
-          return;
-        } else {
-          errorMsg += `Error: ${error}`;
-        }
-        
-        setSpeechError(errorMsg);
-        setTimeout(() => setSpeechError(''), 5000);
+        // Show the error message directly from the service
+        setSpeechError(error);
+        setTimeout(() => setSpeechError(''), 8000);
       },
       () => {
         // Recognition ended
@@ -344,8 +338,14 @@ export default function Chat() {
 
     if (!started) {
       setIsRecording(false);
-      setSpeechError('Failed to start speech recognition. Please try again.');
-      setTimeout(() => setSpeechError(''), 5000);
+      // Get diagnostic message
+      const diagnostic = getDiagnosticMessage();
+      if (diagnostic) {
+        setSpeechError(diagnostic);
+      } else {
+        setSpeechError('Failed to start speech recognition. Please check your microphone permissions and try again.');
+      }
+      setTimeout(() => setSpeechError(''), 8000);
     }
   };
 
@@ -370,6 +370,25 @@ export default function Chat() {
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
+
+      {/* HTTPS Notice - shown when not in secure context */}
+      {!isSecureContext() && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+          <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <AlertCircle size={20} className="text-blue-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-blue-900 mb-1">📝 Voice Input Notice</p>
+            <p className="text-sm text-blue-800">
+              Voice input requires a secure connection (HTTPS). The app is currently running on HTTP.
+              <strong> You can still chat by typing your questions below!</strong>
+            </p>
+            <p className="text-xs text-blue-700 mt-2">
+              💡 For full voice support: Run the app locally with <code className="bg-blue-100 px-1 rounded">npm run dev</code> (uses localhost) or deploy with HTTPS.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-4">
         {/* Sidebar - Chat History */}
@@ -485,9 +504,20 @@ export default function Chat() {
 
           {/* Speech Error */}
           {speechError && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-start gap-2">
-              <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-amber-800">{speechError}</span>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3 flex items-start gap-3">
+              <AlertCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-amber-900 font-medium mb-1">Voice Input Issue</p>
+                <p className="text-sm text-amber-800">{speechError}</p>
+                {!isSecureContext() && (
+                  <div className="mt-3 p-3 bg-amber-100 rounded-lg">
+                    <p className="text-xs text-amber-900">
+                      <strong>💡 Tip:</strong> You can still use the chat by typing your questions in the text box below. 
+                      For voice input to work, the app needs to be served over HTTPS.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
