@@ -1,7 +1,13 @@
 import { useState, useRef, useEffect, useContext } from 'react';
-import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X } from 'lucide-react';
+import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X, AlertCircle } from 'lucide-react';
 import { schemes, states } from '../data/mockData';
 import { speak, stopSpeaking } from '../services/audioService';
+import { 
+  startListening, 
+  stopListening, 
+  isSpeechRecognitionAvailable,
+  isLanguageSupportedForRecognition 
+} from '../services/speechRecognition';
 import { AppContext } from '../App';
 import { 
   getAllChats, 
@@ -27,6 +33,8 @@ export default function Chat() {
   const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null);
   const [chatLang, setChatLang] = useState('en');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [speechError, setSpeechError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Welcome message - personalized if user has profile
@@ -242,32 +250,99 @@ export default function Chat() {
 
   const handleVoiceInput = () => {
     if (isRecording) {
+      // Stop listening
+      stopListening();
       setIsRecording(false);
-      setIsProcessing(true);
-      setTimeout(() => {
-        const transcribedText = 'Tell me about schemes for farmers in Uttar Pradesh';
-        const userMessage: ChatMessage = { 
-          role: 'user', 
-          content: transcribedText, 
-          isVoice: true,
-          timestamp: Date.now()
-        };
-        setMessages(prev => [...prev, userMessage]);
-        
-        setTimeout(() => {
-          const response = getAIResponse(transcribedText);
-          const assistantMessage: ChatMessage = {
-            role: 'assistant',
-            content: response,
+      setInterimTranscript('');
+      return;
+    }
+
+    // Check if speech recognition is available
+    if (!isSpeechRecognitionAvailable()) {
+      setSpeechError('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
+      setTimeout(() => setSpeechError(''), 5000);
+      return;
+    }
+
+    // Check if selected language is supported
+    if (!isLanguageSupportedForRecognition(chatLang)) {
+      setSpeechError(`Speech recognition for this language is not supported. Try English or Hindi.`);
+      setTimeout(() => setSpeechError(''), 5000);
+      return;
+    }
+
+    // Clear previous errors
+    setSpeechError('');
+    setInterimTranscript('');
+    setIsRecording(true);
+
+    // Start listening with the selected language
+    const started = startListening(
+      chatLang,
+      (text, isFinal) => {
+        if (isFinal) {
+          // Final transcription - send as message
+          setInterimTranscript('');
+          setIsRecording(false);
+          
+          const userMessage: ChatMessage = { 
+            role: 'user', 
+            content: text, 
+            isVoice: true,
             timestamp: Date.now()
           };
-          setMessages(prev => [...prev, assistantMessage]);
-          setIsProcessing(false);
-          scrollToBottom();
-        }, 1000);
-      }, 1500);
-    } else {
-      setIsRecording(true);
+          setMessages(prev => [...prev, userMessage]);
+          
+          // Get AI response
+          setIsProcessing(true);
+          setTimeout(() => {
+            const response = getAIResponse(text);
+            const assistantMessage: ChatMessage = {
+              role: 'assistant',
+              content: response,
+              timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, assistantMessage]);
+            setIsProcessing(false);
+            scrollToBottom();
+          }, 1000);
+        } else {
+          // Interim result - show live transcription
+          setInterimTranscript(text);
+        }
+      },
+      (error) => {
+        console.error('Speech recognition error:', error);
+        setIsRecording(false);
+        setInterimTranscript('');
+        
+        let errorMsg = 'Speech recognition failed. ';
+        if (error === 'no-speech') {
+          errorMsg += 'No speech was detected. Please try again.';
+        } else if (error === 'audio-capture') {
+          errorMsg += 'No microphone was found. Please check your microphone.';
+        } else if (error === 'not-allowed') {
+          errorMsg += 'Microphone access was denied. Please allow microphone access.';
+        } else if (error === 'network') {
+          errorMsg += 'Network error occurred. Please check your connection.';
+        } else {
+          errorMsg += `Error: ${error}`;
+        }
+        
+        setSpeechError(errorMsg);
+        setTimeout(() => setSpeechError(''), 5000);
+      },
+      () => {
+        // Recognition ended
+        setIsRecording(false);
+        setInterimTranscript('');
+      }
+    );
+
+    if (!started) {
+      setIsRecording(false);
+      setSpeechError('Failed to start speech recognition. Please try again.');
+      setTimeout(() => setSpeechError(''), 5000);
     }
   };
 
@@ -405,20 +480,42 @@ export default function Chat() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Recording indicator */}
+          {/* Speech Error */}
+          {speechError && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+              <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-amber-800">{speechError}</span>
+            </div>
+          )}
+
+          {/* Recording indicator with live transcription */}
           {isRecording && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 flex items-center gap-3">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-red-700">Recording... Speak in any Indian language</span>
-              <div className="flex-1 flex items-center justify-center gap-1">
-                {[...Array(8)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-1 bg-red-400 rounded-full animate-pulse"
-                    style={{ height: `${12 + Math.random() * 20}px`, animationDelay: `${i * 0.1}s` }}
-                  ></div>
-                ))}
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-red-700">
+                  🎤 Listening in {chatLang === 'en' ? 'English' : chatLang === 'hi' ? 'Hindi' : chatLang === 'ta' ? 'Tamil' : chatLang === 'te' ? 'Telugu' : chatLang === 'bn' ? 'Bengali' : chatLang === 'mr' ? 'Marathi' : chatLang === 'gu' ? 'Gujarati' : chatLang === 'kn' ? 'Kannada' : chatLang === 'ml' ? 'Malayalam' : chatLang === 'pa' ? 'Punjabi' : chatLang}...
+                </span>
+                <div className="flex-1 flex items-center justify-end gap-1">
+                  {[...Array(6)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-1 bg-red-400 rounded-full animate-pulse"
+                      style={{ height: `${10 + Math.random() * 16}px`, animationDelay: `${i * 0.15}s` }}
+                    ></div>
+                  ))}
+                </div>
               </div>
+              {interimTranscript && (
+                <div className="mt-2 p-2 bg-white/60 rounded-lg">
+                  <p className="text-sm text-gray-700 italic">
+                    "{interimTranscript}"
+                  </p>
+                </div>
+              )}
+              {!interimTranscript && (
+                <p className="text-xs text-red-600 mt-1">Speak now... (click mic to stop)</p>
+              )}
             </div>
           )}
 
