@@ -1,8 +1,9 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, MapPin, Volume2, CheckCircle, Circle, Clock, ExternalLink, FileText, Star, TrendingUp, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, MapPin, CheckCircle, Circle, Clock, ExternalLink, FileText, Star, TrendingUp, AlertTriangle } from 'lucide-react';
 import { schemes, languages } from '../data/mockData';
 import { AppContext } from '../App';
+import AudioPlayer from '../components/AudioPlayer';
 
 export default function SchemeDetail() {
   const { id } = useParams();
@@ -10,8 +11,6 @@ export default function SchemeDetail() {
   const scheme = schemes.find((s) => s.id === id);
   
   const [selectedLang, setSelectedLang] = useState('en');
-  const [audioPlaying, setAudioPlaying] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [eligibilityScore, setEligibilityScore] = useState<{ score: number; matched: string[]; unmatched: string[]; explanation: string } | null>(null);
   const [loadingScore, setLoadingScore] = useState(false);
@@ -44,20 +43,8 @@ export default function SchemeDetail() {
   const steps = scheme.application_process.split('\n').filter(s => s.trim()).map(s => s.replace(/^\d+\.\s*/, ''));
   const documents = scheme.documents_required.split(',').map(d => d.trim());
 
-  const handlePlayAudio = () => {
-    setAudioPlaying(true);
-    setAudioProgress(0);
-    const interval = setInterval(() => {
-      setAudioProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setAudioPlaying(false);
-          return 0;
-        }
-        return prev + 2;
-      });
-    }, 100);
-  };
+  // Build a spoken summary of the scheme
+  const schemeSummary = scheme ? `${scheme.scheme_name}. This is a ${scheme.level} level scheme in ${scheme.state}, under the ${scheme.category} category. Benefits: ${scheme.benefits}. Eligibility: ${scheme.eligibility}. To apply: ${scheme.application_process.replace(/\n/g, '. ')}` : '';
 
   const toggleStep = (index: number) => {
     setCompletedSteps(prev =>
@@ -104,44 +91,13 @@ export default function SchemeDetail() {
               </div>
             </div>
 
-            {/* Audio Player */}
-            <div className="bg-gradient-to-r from-saffron/5 to-green-india/5 rounded-xl p-4 mt-4">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={handlePlayAudio}
-                  className="w-12 h-12 bg-saffron rounded-full flex items-center justify-center text-white hover:bg-saffron-dark transition-colors flex-shrink-0"
-                >
-                  <Volume2 size={20} />
-                </button>
-                <div className="flex-1">
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-saffron to-green-india rounded-full transition-all duration-200"
-                      style={{ width: `${audioProgress}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-xs text-gray-500">
-                      {audioPlaying ? '🔊 Playing...' : 'Click to listen to summary'}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {selectedLang === 'en' ? 'English' : languages.find(l => l.code === selectedLang)?.name}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-3">
-                <label className="text-xs text-gray-500">Language:</label>
-                <select
-                  value={selectedLang}
-                  onChange={(e) => setSelectedLang(e.target.value)}
-                  className="text-xs border rounded px-2 py-1"
-                >
-                  {languages.map((lang) => (
-                    <option key={lang.code} value={lang.code}>{lang.name}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Audio Player - Real TTS */}
+            <div className="mt-4">
+              <AudioPlayer
+                text={schemeSummary}
+                title={`Listen: ${scheme.scheme_name}`}
+                language={selectedLang}
+              />
             </div>
           </div>
 

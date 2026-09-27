@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, FileText, Loader2, Volume2, MessageCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { languages } from '../data/mockData';
+import AudioPlayer from '../components/AudioPlayer';
 
 interface Document {
   id: string;
@@ -97,16 +98,12 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
 
   const handleGenerateAudio = () => {
     if (!document) return;
-    setLoading('audio');
-    
-    setTimeout(() => {
-      setDocument({
-        ...document,
-        audioUrl: 'mock-audio-url',
-        status: 'audio_ready',
-      });
-      setLoading(null);
-    }, 2500);
+    // Audio is now available immediately via the AudioPlayer component
+    // Just mark it as audio_ready to show the player
+    setDocument({
+      ...document,
+      status: 'audio_ready',
+    });
   };
 
   const handleChat = () => {
@@ -207,15 +204,11 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
 
                 <button
                   onClick={handleGenerateAudio}
-                  disabled={!document || document.status !== 'simplified' || loading !== null}
+                  disabled={!document || document.status !== 'simplified'}
                   className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading === 'audio' ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <Volume2 size={18} />
-                  )}
-                  Generate Audio
+                  <Volume2 size={18} />
+                  Enable Audio
                 </button>
               </div>
             </div>
@@ -264,24 +257,18 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
             </div>
           )}
 
-          {/* Audio Player */}
-          {document?.status === 'audio_ready' && (
+          {/* Audio Player - Real TTS */}
+          {document?.simplifiedText && (
             <div className="card">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">🔊 Audio Summary</h2>
-              <div className="bg-gradient-to-r from-saffron/10 to-green-india/10 rounded-xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <button className="w-12 h-12 bg-saffron rounded-full flex items-center justify-center text-white hover:bg-saffron-dark transition-colors">
-                    <Volume2 size={20} />
-                  </button>
-                  <div className="flex-1">
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full w-1/3 bg-saffron rounded-full"></div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">0:45 / 2:30 • Hindi</p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-600">Generated using Indic Parler-TTS • AI4Bharat</p>
-              </div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">🔊 Listen to Summary</h2>
+              <AudioPlayer
+                text={document.simplifiedText}
+                title="Document Audio Summary"
+                language={document.language}
+              />
+              <p className="text-xs text-gray-500 mt-3">
+                ✨ Powered by browser Text-to-Speech • Supports 11 Indian languages
+              </p>
             </div>
           )}
 
