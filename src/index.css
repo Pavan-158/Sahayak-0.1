@@ -1,1 +1,38 @@
 @import "tailwindcss";
+
+@theme {
+  --color-saffron: #FF9933;
+  --color-saffron-dark: #E6851A;
+  --color-green-india: #138808;
+  --color-green-india-dark: #0D5E06;
+  --color-navy: #000080;
+  --color-navy-light: #1a1a99;
+  --color-cream: #FFFBF0;
+  --color-slate-warm: #374151;
+}
+
+@layer base {
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: var(--color-cream);
+    color: var(--color-slate-warm);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-saffron hover:bg-saffron-dark text-white font-semibold py-2 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg;
+  }
+  .btn-secondary {
+    @apply bg-green-india hover:bg-green-india-dark text-white font-semibold py-2 px-6 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg;
+  }
+  .btn-outline {
+    @apply border-2 border-saffron text-saffron hover:bg-saffron hover:text-white font-semibold py-2 px-6 rounded-lg transition-all duration-200;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-200 p-6;
+  }
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-saffron focus:border-transparent outline-none transition-all duration-200;
+  }
+}

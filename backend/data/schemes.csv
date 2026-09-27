@@ -1,0 +1,62 @@
+scheme_name,state,state_code,level,category,eligibility,benefits,application_process,documents_required,official_link
+PM Kisan Samman Nidhi,All India,ALL,Central,Agriculture,"All land-holding farmer families. Excludes institutional land holders and income tax payers.","₹6,000 per year in three installments of ₹2,000 each directly to bank account.","1. Visit nearest CSC or agriculture office
+2. Carry Aadhaar, land docs, bank passbook
+3. Fill PM-Kisan form
+4. Submit with documents
+5. Verification by state officials
+6. Amount credited after approval","Aadhaar Card, Land ownership documents, Bank passbook",https://pmkisan.gov.in/
+Ayushman Bharat PMJAY,All India,ALL,Central,Healthcare,"Families from SECC 2011 data. Covers 10.74 crore poor and vulnerable families.","Health cover of ₹5 lakhs per family per year for secondary and tertiary care hospitalization.","1. Check eligibility on pmjay.gov.in
+2. Visit empanelled hospital or CSC
+3. Carry Aadhaar or ration card
+4. Get e-card generated
+5. Use for cashless treatment","Aadhaar Card, Ration Card, SECC verification",https://pmjay.gov.in/
+Mukhyamantri Kanya Sumangala Yojana,Uttar Pradesh,UP,State,Women & Child,"Girl children born in UP after April 2019. Max 2 girls per family. Income below ₹3 lakh.","₹15,000 in installments at birth, immunization, school admission, and graduation.","1. Apply online at kanya.upsdc.gov.in
+2. Fill form with girl child details
+3. Upload documents
+4. Submit application
+5. Verification by district authorities
+6. Installments to mother's account","Birth Certificate, Parents Aadhaar, Income Certificate, Bank Passbook",https://kanya.upsdc.gov.in/
+Maharashtra Ladki Bahin Yojana,Maharashtra,MH,State,Women,"Women aged 21-65 in Maharashtra. Family income below ₹2.5 lakh. Not an income tax payer.","Monthly financial assistance of ₹1,500 directly to bank account.","1. Visit setu.mahabat.com or Setu Kendra
+2. Fill application form
+3. Submit with Aadhaar, income proof
+4. Verification by tehsil office
+5. Monthly amount credited","Aadhaar Card, Domicile Certificate, Income Certificate, Bank Details",https://setu.mahabat.com/
+Delhi Free Electricity Scheme,Delhi,DL,State,Utilities,"Delhi residents with electricity consumption up to 200 units per month.","Complete subsidy on electricity bills for consumption up to 200 units per month.","1. Ensure valid electricity connection
+2. Apply on Delhi govt portal
+3. Submit Aadhaar and bill copy
+4. Verification by electricity dept
+5. Subsidy adjusted in next bill","Aadhaar Card, Electricity Bill, Voter ID",https://delhi.gov.in/
+Karnataka Gruha Jyothi,Karnataka,KA,State,Utilities,"All Karnataka households with consumption up to 200 units per month.","Free electricity up to 200 units per month for domestic consumers.","1. Register on sevasindhugs.karnataka.gov.in
+2. Enter consumer number and Aadhaar
+3. Verify details
+4. Submit application
+5. Benefit from next billing cycle","Aadhaar Card, Electricity Consumer Number, Mobile Number",https://sevasindhugs.karnataka.gov.in/
+Tamil Nadu Pudhumai Penn Scheme,Tamil Nadu,TN,State,Women,"Women aged 21-60 from families with income below ₹2.5 lakh. Permanent TN resident.","Monthly assistance of ₹1,000 to eligible women from low-income families.","1. Visit nearest e-Sevai center or apply online
+2. Fill application form
+3. Submit with required documents
+4. Verification by revenue department
+5. Monthly amount credited to bank","Aadhaar Card, Income Certificate, Residence Proof, Bank Passbook",https://www.tn.gov.in/
+PM Awas Yojana Urban,All India,ALL,Central,Housing,"Urban EWS/LIG households without pucca house. Priority to SC/ST, minorities, widows.","Central assistance of ₹1.5 lakh per house. Interest subsidy of 6.5% on home loans.","1. Check eligibility on pmaymis.gov.in
+2. Apply through bank or online
+3. Submit documents
+4. Verification by urban local body
+5. Sanction letter issued
+6. Construction with staged fund release","Aadhaar Card, Income Certificate, Affidavit, Bank Statement",https://pmaymis.gov.in/
+Gujarat Vahali Dikri Yojana,Gujarat,GJ,State,Women & Child,"Girl children born in Gujarat after Aug 2019. Max 2 girls per family.","₹4,000 at Std 1, ₹6,000 at Std 9, ₹1,00,000 at age 18 for education/marriage.","1. Apply at Anganwadi/ICDS office
+2. Submit birth certificate and docs
+3. Verified by child development officer
+4. Benefits at each milestone","Birth Certificate, Parents Aadhaar, Income Certificate, Ration Card",https://wcd.gujarat.gov.in/
+Rajasthan Chiranjeevi Swasthya Bima,Rajasthan,RJ,State,Healthcare,"All families in Rajasthan. Universal coverage regardless of income.","Cashless health insurance of ₹25 lakh per family per year. 1577 packages covered.","1. Visit e-Mitra center or hospital
+2. Carry family Aadhaar cards
+3. Generate Chiranjeevi card
+4. Use for cashless treatment","Aadhaar Card (all members), Chiranjeevi Card, Ration Card",https://chiranjeevi.rajasthan.gov.in/
+National Scholarship Portal Post Matric,All India,ALL,Central,Education,"SC/ST/OBC/minority students with family income below ₹8 lakh.","Full tuition fee waiver, maintenance allowance ₹1,000-1,200/month, book grants.","1. Register on scholarships.gov.in
+2. Fill application form
+3. Upload documents
+4. Submit through institute
+5. Scholarship credited to bank","Aadhaar, Income Certificate, Caste Certificate, Marks Sheet, Bank Passbook",https://scholarships.gov.in/
+Kerala Karma Kerala Scheme,Kerala,KL,State,Employment,"Unemployed youth of Kerala aged 20-36. Permanent resident. Graduates/ITI preferred.","Monthly stipend of ₹6,000 for 24 months. Skill training and placement assistance.","1. Register on karmakerala.org
+2. Complete skill assessment
+3. Attend counseling session
+4. Get matched with employer
+5. Begin apprenticeship","Aadhaar Card, Educational Certificates, Unemployment Certificate",https://karmakerala.org/

@@ -1,0 +1,42 @@
+# Sahayak Backend - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+jinja2==3.1.2
+
+# Database
+sqlalchemy==2.0.23
+aiosqlite==0.19.0
+
+# AI/ML - LLM
+google-generativeai==0.3.1
+
+# AI/ML - Translation (AI4Bharat IndicTrans2)
+transformers==4.36.0
+torch==2.1.1
+sentencepiece==0.1.99
+sacremoses==0.1.1
+
+# AI/ML - Text-to-Speech (Indic Parler-TTS)
+# parler-tts==0.1.0  # Uncomment when available on PyPI
+# For now, use transformers pipeline
+
+# AI/ML - Speech-to-Text (Whisper)
+openai-whisper==20231117
+
+# OCR
+pdfplumber==0.10.3
+# docling-serve  # Uncomment when available
+
+# Vector Database (RAG)
+faiss-cpu==1.7.4
+numpy==1.26.2
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.2
+aiofiles==23.2.1
+pandas==2.1.4
