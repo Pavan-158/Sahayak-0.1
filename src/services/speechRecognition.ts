@@ -33,6 +33,21 @@ export function isSpeechRecognitionAvailable(): boolean {
 }
 
 /**
+ * Request microphone permission first
+ */
+export async function requestMicrophonePermission(): Promise<boolean> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Stop the stream immediately - we just needed the permission
+    stream.getTracks().forEach(track => track.stop());
+    return true;
+  } catch (error) {
+    console.error('Microphone permission error:', error);
+    return false;
+  }
+}
+
+/**
  * Initialize speech recognition
  */
 export function initSpeechRecognition(): boolean {
@@ -55,12 +70,19 @@ export function initSpeechRecognition(): boolean {
 /**
  * Start listening for speech
  */
-export function startListening(
+export async function startListening(
   language: string = 'en',
   onResult: (text: string, isFinal: boolean) => void,
   onError?: (error: string) => void,
   onEnd?: () => void,
-): boolean {
+): Promise<boolean> {
+  // First, request microphone permission
+  const hasPermission = await requestMicrophonePermission();
+  if (!hasPermission) {
+    onError?.('Microphone access was denied. Please allow microphone access in your browser settings.');
+    return false;
+  }
+
   if (!recognition && !initSpeechRecognition()) {
     return false;
   }

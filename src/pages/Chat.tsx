@@ -248,7 +248,7 @@ export default function Chat() {
     }, 1000 + Math.random() * 1000);
   };
 
-  const handleVoiceInput = () => {
+  const handleVoiceInput = async () => {
     if (isRecording) {
       // Stop listening
       stopListening();
@@ -277,7 +277,7 @@ export default function Chat() {
     setIsRecording(true);
 
     // Start listening with the selected language
-    const started = startListening(
+    const started = await startListening(
       chatLang,
       (text, isFinal) => {
         if (isFinal) {
@@ -322,9 +322,12 @@ export default function Chat() {
         } else if (error === 'audio-capture') {
           errorMsg += 'No microphone was found. Please check your microphone.';
         } else if (error === 'not-allowed') {
-          errorMsg += 'Microphone access was denied. Please allow microphone access.';
+          errorMsg += 'Microphone access was denied. Please allow microphone access in your browser settings.';
         } else if (error === 'network') {
           errorMsg += 'Network error occurred. Please check your connection.';
+        } else if (error === 'aborted') {
+          // User cancelled, don't show error
+          return;
         } else {
           errorMsg += `Error: ${error}`;
         }

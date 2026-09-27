@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState, createContext } from 'react';
+import { useState, createContext, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import DocumentSimplifier from './pages/DocumentSimplifier';
@@ -33,9 +33,35 @@ export const AppContext = createContext<AppContextType>({
   sessionId: 'demo-session',
 });
 
+const PROFILE_STORAGE_KEY = 'sahayak_user_profile';
+
 function App() {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  // Load profile from localStorage on mount
+  const [user, setUserState] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem(PROFILE_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error('Error loading profile:', e);
+      return null;
+    }
+  });
+  
   const sessionId = 'demo-session-' + Date.now();
+
+  // Wrapper for setUser that also saves to localStorage
+  const setUser = (newUser: UserProfile | null) => {
+    setUserState(newUser);
+    try {
+      if (newUser) {
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(newUser));
+      } else {
+        localStorage.removeItem(PROFILE_STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error('Error saving profile:', e);
+    }
+  };
 
   return (
     <AppContext.Provider value={{ user, setUser, sessionId }}>
