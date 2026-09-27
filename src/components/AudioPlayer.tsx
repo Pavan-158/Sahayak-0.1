@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Volume2 } from 'lucide-react';
-import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking, isPaused, preloadVoices } from '../services/audioService';
+import { Play, Pause, Square, Volume2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { 
+  speak, 
+  stopSpeaking, 
+  pauseSpeaking, 
+  resumeSpeaking, 
+  preloadVoices, 
+  isLanguageSupported,
+  getSupportedLanguages,
+  getLanguageName,
+  getAllVoices
+} from '../services/audioService';
 import { languages } from '../data/mockData';
 
 interface AudioPlayerProps {
@@ -16,16 +26,32 @@ export default function AudioPlayer({ text, title = 'Audio Summary', language = 
   const [progress, setProgress] = useState(0);
   const [selectedLang, setSelectedLang] = useState(language);
   const [voicesLoaded, setVoicesLoaded] = useState(false);
+  const [supportedLangs, setSupportedLangs] = useState<string[]>([]);
+  const [currentVoiceName, setCurrentVoiceName] = useState<string>('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    preloadVoices().then(() => setVoicesLoaded(true));
+    preloadVoices().then(() => {
+      setVoicesLoaded(true);
+      setSupportedLangs(getSupportedLanguages());
+    });
     
     return () => {
       stopSpeaking();
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  // Update supported languages when voices load
+  useEffect(() => {
+    if (voicesLoaded) {
+      setSupportedLangs(getSupportedLanguages());
+    }
+  }, [voicesLoaded]);
+
+  const isLangSupported = (langCode: string): boolean => {
+    return supportedLangs.includes(langCode);
+  };
 
   const handlePlayPause = () => {
     if (isPlaying && !isPausedState) {
@@ -41,6 +67,21 @@ export default function AudioPlayer({ text, title = 'Audio Summary', language = 
       setProgress(0);
       setIsPlaying(true);
       setIsPausedState(false);
+      
+      // Get the voice that will be used (for display)
+      const voices = getAllVoices();
+      const targetLang = selectedLang;
+      const bcp47 = {
+        en: 'en-IN', hi: 'hi-IN', bn: 'bn-IN', te: 'te-IN', mr: 'mr-IN',
+        ta: 'ta-IN', gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN', pa: 'pa-IN', or: 'or-IN',
+      }[targetLang] || 'en-IN';
+      const langPrefix = bcp47.split('-')[0].toLowerCase();
+      
+      const matchingVoice = voices.find(v => v.lang.toLowerCase() === bcp47.toLowerCase()) ||
+                           voices.find(v => v.lang.toLowerCase().startsWith(langPrefix + '-')) ||
+                           voices.find(v => v.lang.toLowerCase().split('-')[0] === langPrefix);
+      
+      setCurrentVoiceName(matchingVoice?.name || 'Browser default');
       
       speak(
         text,
@@ -64,7 +105,6 @@ export default function AudioPlayer({ text, title = 'Audio Summary', language = 
   };
 
   const formatTime = (pct: number) => {
-    // Rough estimate: assume 2 min total
     const totalSeconds = 120;
     const current = Math.floor((pct / 100) * totalSeconds);
     const mins = Math.floor(current / 60);
@@ -72,12 +112,16 @@ export default function AudioPlayer({ text, title = 'Audio Summary', language = 
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Show warning if selected language isn't supported
+  const langNotSupported = voicesLoaded && !isLangSupported(selectedLang);
+
   if (compact) {
     return (
       <div className="flex items-center gap-3 bg-gradient-to-r from-saffron/5 to-green-india/5 rounded-lg p-3">
         <button
           onClick={handlePlayPause}
-          className="w-10 h-10 bg-saffron rounded-full flex items-center justify-center text-white hover:bg-saffron-dark transition-colors flex-shrink-0 shadow-md"
+          disabled={langNotSupported}
+          className="w-10 h-10 bg-saffron rounded-full flex items-center justify-center text-white hover:bg-saffron-dark transition-colors flex-shrink-0 shadow-md disabled:opacity-50"
           title={isPlaying && !isPausedState ? 'Pause' : 'Play'}
         >
           {isPlaying && !isPausedState ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -102,11 +146,36 @@ export default function AudioPlayer({ text, title = 'Audio Summary', language = 
         <h3 className="font-semibold text-gray-800">{title}</h3>
       </div>
 
+      {/* Language Support Warning */}
+      {langNotSupported && (
+        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+          <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-800">
+            <strong>{getLanguageName(selectedLang)}</strong> voice not found in your browser.
+            {supportedLangs.length > 0 ? (
+              <span> Available: {supportedLangs.map(code => getLanguageName(code)).join(', ')}.</span>
+            ) : (
+              <span> Try using Chrome or Edge for better Indian language support.</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Supported Languages Info */}
+      {voicesLoaded && supportedLangs.length > 0 && !langNotSupported && (
+        <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <CheckCircle2 size={14} className="text-green-600" />
+          <span className="text-xs text-green-800">
+            ✓ {getLanguageName(selectedLang)} voice available: <strong>{currentVoiceName || 'Ready'}</strong>
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         {/* Play/Pause Button */}
         <button
           onClick={handlePlayPause}
-          disabled={!text || !voicesLoaded}
+          disabled={!text || !voicesLoaded || langNotSupported}
           className={`w-14 h-14 rounded-full flex items-center justify-center text-white transition-all shadow-lg flex-shrink-0 ${
             isPlaying && !isPausedState
               ? 'bg-green-india hover:bg-green-india-dark'
@@ -157,16 +226,30 @@ export default function AudioPlayer({ text, title = 'Audio Summary', language = 
           onChange={(e) => {
             if (isPlaying) handleStop();
             setSelectedLang(e.target.value);
+            setCurrentVoiceName('');
           }}
           className="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:ring-2 focus:ring-saffron focus:border-transparent outline-none"
           disabled={isPlaying}
         >
-          {languages.map((lang) => (
-            <option key={lang.code} value={lang.code}>{lang.name}</option>
-          ))}
+          {languages.map((lang) => {
+            const supported = isLangSupported(lang.code);
+            return (
+              <option key={lang.code} value={lang.code}>
+                {lang.name} {!voicesLoaded ? '' : supported ? '✓' : '✗'}
+              </option>
+            );
+          })}
         </select>
-        <span className="text-xs text-gray-400 ml-auto">Powered by browser TTS</span>
+        <span className="text-xs text-gray-400 ml-auto">
+          {voicesLoaded ? `${supportedLangs.length} languages available` : 'Loading voices...'}
+        </span>
       </div>
+
+      {/* Help text */}
+      <p className="text-xs text-gray-500 mt-3 italic">
+        💡 Tip: Chrome and Edge browsers have the best Indian language voice support. 
+        If a language shows ✗, try a different browser.
+      </p>
     </div>
   );
 }

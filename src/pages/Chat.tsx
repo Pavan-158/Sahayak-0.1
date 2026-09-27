@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
-import { Send, Mic, MicOff, Loader2, Volume2 } from 'lucide-react';
+import { Send, Mic, MicOff, Loader2, Volume2, Square } from 'lucide-react';
 import { schemes } from '../data/mockData';
+import { speak, stopSpeaking, isSpeaking } from '../services/audioService';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -18,7 +19,22 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null);
+  const [chatLang, setChatLang] = useState('en');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleSpeakMessage = (text: string, idx: number) => {
+    if (speakingMsgIdx === idx) {
+      // Already speaking this message - stop it
+      stopSpeaking();
+      setSpeakingMsgIdx(null);
+    } else {
+      // Stop any current speech
+      stopSpeaking();
+      setSpeakingMsgIdx(idx);
+      speak(text, chatLang, undefined, () => setSpeakingMsgIdx(null), 0.9);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -142,8 +158,16 @@ export default function Chat() {
                   <div className="text-sm whitespace-pre-line">{msg.content}</div>
                 </div>
                 {msg.role === 'assistant' && (
-                  <button className="mt-1 ml-2 text-gray-400 hover:text-saffron transition-colors">
-                    <Volume2 size={14} />
+                  <button 
+                    onClick={() => handleSpeakMessage(msg.content, i)}
+                    className={`mt-1 ml-2 transition-colors ${
+                      speakingMsgIdx === i 
+                        ? 'text-green-600 animate-pulse' 
+                        : 'text-gray-400 hover:text-saffron'
+                    }`}
+                    title={speakingMsgIdx === i ? 'Stop speaking' : 'Listen to this message'}
+                  >
+                    {speakingMsgIdx === i ? <Square size={14} /> : <Volume2 size={14} />}
                   </button>
                 )}
               </div>
@@ -213,8 +237,8 @@ export default function Chat() {
           </button>
         </div>
 
-        {/* Quick actions */}
-        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+        {/* Quick actions + Language selector */}
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
           {['Schemes for farmers', 'Health schemes', 'Women schemes', 'How to apply?', 'Check my eligibility'].map((q) => (
             <button
               key={q}
@@ -224,6 +248,26 @@ export default function Chat() {
               {q}
             </button>
           ))}
+          <div className="ml-auto flex items-center gap-1.5">
+            <Volume2 size={14} className="text-gray-400" />
+            <select
+              value={chatLang}
+              onChange={(e) => setChatLang(e.target.value)}
+              className="text-xs border rounded px-2 py-1 bg-white"
+              title="Audio language for responses"
+            >
+              <option value="en">🔊 English</option>
+              <option value="hi">🔊 हिंदी</option>
+              <option value="ta">🔊 தமிழ்</option>
+              <option value="te">🔊 తెలుగు</option>
+              <option value="bn">🔊 বাংলা</option>
+              <option value="mr">🔊 मराठी</option>
+              <option value="gu">🔊 ગુજરાતી</option>
+              <option value="kn">🔊 ಕನ್ನಡ</option>
+              <option value="ml">🔊 മലയാളം</option>
+              <option value="pa">🔊 ਪੰਜਾਬੀ</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

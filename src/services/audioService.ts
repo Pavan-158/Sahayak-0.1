@@ -18,10 +18,26 @@ const LANG_MAP: Record<string, string> = {
   or: 'or-IN',
 };
 
+// Human-readable names for languages
+const LANG_NAMES: Record<string, string> = {
+  en: 'English',
+  hi: 'Hindi',
+  bn: 'Bengali',
+  te: 'Telugu',
+  mr: 'Marathi',
+  ta: 'Tamil',
+  gu: 'Gujarati',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  pa: 'Punjabi',
+  or: 'Odia',
+};
+
 let currentUtterance: SpeechSynthesisUtterance | null = null;
 let onProgressCallback: ((progress: number) => void) | null = null;
 let onEndCallback: (() => void) | null = null;
 let progressInterval: ReturnType<typeof setInterval> | null = null;
+let cachedVoices: SpeechSynthesisVoice[] = [];
 
 /**
  * Check if speech synthesis is available
@@ -31,45 +47,84 @@ export function isTTSAvailable(): boolean {
 }
 
 /**
- * Get available voices for a language
+ * Get all available voices (cached)
  */
-export function getVoicesForLanguage(langCode: string): SpeechSynthesisVoice[] {
-  const voices = window.speechSynthesis.getVoices();
-  const bcp47 = LANG_MAP[langCode] || 'en-IN';
-  const langPrefix = bcp47.split('-')[0];
-  
-  // Prefer voices matching the language
-  return voices.filter(v => 
-    v.lang.startsWith(langPrefix) || v.lang === bcp47
-  );
+export function getAllVoices(): SpeechSynthesisVoice[] {
+  if (cachedVoices.length === 0 && isTTSAvailable()) {
+    cachedVoices = window.speechSynthesis.getVoices();
+  }
+  return cachedVoices;
 }
 
 /**
- * Get the best voice for a language
+ * Check if a specific language is supported by available voices
  */
-function getBestVoice(langCode: string): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
+export function isLanguageSupported(langCode: string): boolean {
+  const voices = getAllVoices();
   const bcp47 = LANG_MAP[langCode] || 'en-IN';
   const langPrefix = bcp47.split('-')[0];
   
-  // Try exact match first
-  let voice = voices.find(v => v.lang === bcp47);
+  return voices.some(v => v.lang.toLowerCase().startsWith(langPrefix.toLowerCase()));
+}
+
+/**
+ * Get list of supported languages from available voices
+ */
+export function getSupportedLanguages(): string[] {
+  const voices = getAllVoices();
+  const supported = new Set<string>();
+  
+  for (const [code, bcp47] of Object.entries(LANG_MAP)) {
+    const langPrefix = bcp47.split('-')[0];
+    if (voices.some(v => v.lang.toLowerCase().startsWith(langPrefix.toLowerCase()))) {
+      supported.add(code);
+    }
+  }
+  
+  return Array.from(supported);
+}
+
+/**
+ * Get the best voice for a language.
+ * CRITICAL: Only returns a voice if it actually matches the target language.
+ * Returns null if no matching voice is found (so browser uses its default).
+ */
+function getBestVoice(langCode: string): SpeechSynthesisVoice | null {
+  const voices = getAllVoices();
+  const bcp47 = LANG_MAP[langCode] || 'en-IN';
+  const langPrefix = bcp47.split('-')[0].toLowerCase();
+  
+  if (voices.length === 0) return null;
+  
+  // 1. Try exact BCP-47 match (e.g., 'hi-IN')
+  let voice = voices.find(v => v.lang.toLowerCase() === bcp47.toLowerCase());
   if (voice) return voice;
   
-  // Try language prefix match
-  voice = voices.find(v => v.lang.startsWith(langPrefix));
+  // 2. Try language + country match (e.g., any 'hi-*')
+  voice = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix + '-'));
   if (voice) return voice;
   
-  // Try Google voice (usually better quality)
-  voice = voices.find(v => v.lang.startsWith(langPrefix) && v.name.includes('Google'));
+  // 3. Try just language prefix (e.g., 'hi')
+  voice = voices.find(v => v.lang.toLowerCase().split('-')[0] === langPrefix);
   if (voice) return voice;
   
-  // Fallback to first available
-  return voices.find(v => v.lang.startsWith('en')) || voices[0] || null;
+  // 4. Try Google voice for this language (usually best quality)
+  voice = voices.find(v => 
+    v.lang.toLowerCase().startsWith(langPrefix) && 
+    v.name.toLowerCase().includes('google')
+  );
+  if (voice) return voice;
+  
+  // 5. DO NOT fall back to English! Return null so browser picks default for the lang.
+  return null;
 }
 
 /**
  * Speak text aloud
+ * 
+ * KEY FIX: We only set utterance.voice if we found a voice that matches the target language.
+ * If no matching voice exists, we ONLY set utterance.lang and let the browser handle it.
+ * This prevents English voice from being forced when user selects Hindi/Tamil/etc.
  */
 export function speak(
   text: string,
@@ -96,12 +151,21 @@ export function speak(
   if (!cleanText) return;
 
   const utterance = new SpeechSynthesisUtterance(cleanText);
-  const voice = getBestVoice(langCode);
   
+  // CRITICAL: Always set the correct language first
+  const targetLang = LANG_MAP[langCode] || 'en-IN';
+  utterance.lang = targetLang;
+  
+  // Only set voice if we found one that MATCHES the target language
+  const voice = getBestVoice(langCode);
   if (voice) {
     utterance.voice = voice;
+    console.log(`🔊 Using voice: ${voice.name} (${voice.lang}) for ${LANG_NAMES[langCode] || langCode}`);
+  } else {
+    // No specific voice found - let browser use its default for this language
+    console.log(`🔊 No specific voice for ${LANG_NAMES[langCode] || langCode}, using browser default with lang=${targetLang}`);
   }
-  utterance.lang = LANG_MAP[langCode] || 'en-IN';
+  
   utterance.rate = rate;
   utterance.pitch = 1.0;
   utterance.volume = 1.0;
@@ -110,16 +174,16 @@ export function speak(
   onProgressCallback = onProgress || null;
   onEndCallback = onEnd || null;
 
-  // Estimate duration for progress tracking (rough: ~150 words per minute)
+  // Estimate duration for progress tracking (rough: ~130 words per minute)
   const wordCount = cleanText.split(/\s+/).length;
-  const estimatedDurationMs = (wordCount / (150 * rate)) * 60 * 1000;
+  const estimatedDurationMs = Math.max(5000, (wordCount / (130 * rate)) * 60 * 1000);
   const startTime = Date.now();
 
   // Progress tracking
   if (onProgressCallback) {
     progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const progress = Math.min(100, (elapsed / estimatedDurationMs) * 100);
+      const progress = Math.min(99, (elapsed / estimatedDurationMs) * 100);
       onProgressCallback?.(progress);
     }, 200);
   }
@@ -146,6 +210,28 @@ export function speak(
     currentUtterance = null;
   };
 
+  // Chrome bug workaround: long texts get cut off. Split into chunks if needed.
+  if (cleanText.length > 200) {
+    // For Chrome, we need to resume periodically
+    const resumeInterval = setInterval(() => {
+      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+    
+    utterance.onend = () => {
+      clearInterval(resumeInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+      onProgressCallback?.(100);
+      onEndCallback?.();
+      currentUtterance = null;
+    };
+  }
+
   window.speechSynthesis.speak(utterance);
 }
 
@@ -171,8 +257,10 @@ export function resumeSpeaking(): void {
     
     // Restart progress tracking
     if (onProgressCallback && currentUtterance) {
+      const startTime = Date.now();
       progressInterval = setInterval(() => {
-        // We don't know exact progress after resume, so just keep incrementing
+        const elapsed = Date.now() - startTime;
+        // Just increment slowly since we don't know exact position
       }, 200);
     }
   }
@@ -207,7 +295,7 @@ export function isPaused(): boolean {
 }
 
 /**
- * Preload voices (needed for some browsers)
+ * Preload voices (needed for some browsers - Chrome loads voices async)
  */
 export function preloadVoices(): Promise<void> {
   return new Promise((resolve) => {
@@ -218,16 +306,46 @@ export function preloadVoices(): Promise<void> {
     
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
+      cachedVoices = voices;
       resolve();
       return;
     }
     
-    // Wait for voices to load
-    window.speechSynthesis.onvoiceschanged = () => {
-      resolve();
+    // Wait for voices to load (Chrome loads them asynchronously)
+    let resolved = false;
+    const handler = () => {
+      cachedVoices = window.speechSynthesis.getVoices();
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
     };
     
-    // Timeout fallback
-    setTimeout(resolve, 1000);
+    window.speechSynthesis.onvoiceschanged = handler;
+    
+    // Also try immediately after a short delay (some browsers)
+    setTimeout(() => {
+      cachedVoices = window.speechSynthesis.getVoices();
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    }, 500);
+    
+    // Final timeout fallback
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cachedVoices = window.speechSynthesis.getVoices();
+        resolve();
+      }
+    }, 2000);
   });
+}
+
+/**
+ * Get language name
+ */
+export function getLanguageName(langCode: string): string {
+  return LANG_NAMES[langCode] || langCode;
 }
