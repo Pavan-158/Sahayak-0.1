@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { Send, Mic, MicOff, Loader2, Volume2, Square, Plus, MessageSquare, Trash2, Menu, X } from 'lucide-react';
-import { schemes } from '../data/mockData';
+import { schemes, states } from '../data/mockData';
 import { speak, stopSpeaking } from '../services/audioService';
+import { AppContext } from '../App';
 import { 
   getAllChats, 
   getChat, 
@@ -16,6 +17,7 @@ import {
 } from '../services/chatStorage';
 
 export default function Chat() {
+  const { user } = useContext(AppContext);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
@@ -27,12 +29,25 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Welcome message
-  const WELCOME_MESSAGE: ChatMessage = {
-    role: 'assistant',
-    content: 'Namaste! 🙏 I am Sahayak, your AI civic assistant. I can help you with:\n\n• Finding government schemes you are eligible for\n• Explaining legal documents in simple language\n• Guiding you through application processes\n• Answering questions about eligibility\n\nYou can type your question or use the microphone to speak. I support multiple Indian languages!',
-    timestamp: Date.now(),
+  // Welcome message - personalized if user has profile
+  const getWelcomeMessage = (): ChatMessage => {
+    if (user) {
+      const stateName = states.find(s => s.code === user.state)?.name || user.state;
+      return {
+        role: 'assistant',
+        content: `Namaste ${user.name}! 🙏\n\nI can see your profile:\n• Age: ${user.age}\n• State: ${stateName}\n• Occupation: ${user.occupation}\n• Income: ₹${user.income.toLocaleString()}/year\n\nI can now check your eligibility for schemes! Just ask me:\n• "Check my eligibility"\n• "What schemes am I eligible for?"\n• "Schemes for farmers" (or your occupation)\n\nOr I can help with:\n• Explaining legal documents in simple language\n• Guiding you through application processes\n• Answering questions in your preferred language (${user.language})\n\nWhat would you like to know?`,
+        timestamp: Date.now(),
+      };
+    }
+    
+    return {
+      role: 'assistant',
+      content: 'Namaste! 🙏 I am Sahayak, your AI civic assistant. I can help you with:\n\n• Finding government schemes you are eligible for\n• Explaining legal documents in simple language\n• Guiding you through application processes\n• Answering questions about eligibility\n\n💡 **Tip:** Set up your profile first to get personalized scheme recommendations!\n\nYou can type your question or use the microphone to speak. I support multiple Indian languages!',
+      timestamp: Date.now(),
+    };
   };
+  
+  const WELCOME_MESSAGE = getWelcomeMessage();
 
   // Initialize: load chat history and active chat
   useEffect(() => {
@@ -126,23 +141,53 @@ export default function Chat() {
   const getAIResponse = (query: string): string => {
     const q = query.toLowerCase();
     
+    // Check if user is asking about eligibility
+    if (q.includes('eligib') || q.includes('qualify') || q.includes('eligible') || q.includes('check my')) {
+      if (!user) {
+        return `I'd love to check your eligibility! However, I don't have your profile details yet.\n\nPlease set up your profile first by:\n1. Click on **Profile** in the navigation menu\n2. Fill in your details (age, income, state, occupation, etc.)\n3. Save your profile\n4. Come back here and ask me to check your eligibility again!\n\nOr you can go directly to **My Alerts** to see schemes matched for you.`;
+      }
+      
+      // User has profile - check eligibility based on their details
+      const stateName = states.find(s => s.code === user.state)?.name || user.state;
+      const matchedSchemes = schemes.filter(scheme => {
+        // Check state match
+        const stateMatch = scheme.state_code === 'ALL' || scheme.state_code === user.state;
+        
+        // Check category match with interests
+        const interestMatch = user.interests.some(interest => 
+          scheme.category.toLowerCase().includes(interest.toLowerCase()) ||
+          interest.toLowerCase().includes(scheme.category.toLowerCase())
+        );
+        
+        // Check income (rough heuristic)
+        const incomeMatch = user.income < 500000;
+        
+        // Check age
+        const ageMatch = user.age >= 18 && user.age <= 65;
+        
+        return stateMatch && (interestMatch || incomeMatch || ageMatch);
+      }).slice(0, 5);
+      
+      if (matchedSchemes.length === 0) {
+        return `Based on your profile:\n\n👤 **Name:** ${user.name}\n🎂 **Age:** ${user.age}\n📍 **State:** ${stateName}\n💰 **Income:** ₹${user.income.toLocaleString()}/year\n💼 **Occupation:** ${user.occupation}\n\nI couldn't find schemes that match your criteria right now. This could be because:\n• Your income might be above the limit for most schemes\n• The schemes in your state might have different eligibility criteria\n\nTry updating your interests in your profile, or browse the **Scheme Directory** to explore more options!`;
+      }
+      
+      return `Great! Based on your profile, here are schemes you're likely eligible for:\n\n👤 **Your Profile:**\n• Age: ${user.age}\n• State: ${stateName}\n• Income: ₹${user.income.toLocaleString()}/year\n• Occupation: ${user.occupation}\n• Interests: ${user.interests.join(', ')}\n\n🎯 **Matched Schemes (${matchedSchemes.length}):**\n\n${matchedSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Category: ${s.category}\n  ${s.benefits.substring(0, 100)}...\n  [View Details →](/schemes/${s.id})`).join('\n\n')}\n\n💡 **Next Steps:**\n• Click on any scheme to see full details and eligibility criteria\n• Check the **My Alerts** page for a complete list with eligibility scores\n• Use the step tracker to track your application progress`;
+    }
+    
     if (q.includes('scheme') && (q.includes('farmer') || q.includes('agriculture') || q.includes('kisan'))) {
       const farmerSchemes = schemes.filter(s => s.category === 'Agriculture');
-      return `Here are some agriculture-related schemes for farmers:\n\n${farmerSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\nWould you like more details about any specific scheme?`;
+      return `Here are some agriculture-related schemes for farmers:\n\n${farmerSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user ? `Based on your occupation (${user.occupation}), you might be eligible for these! Ask me to "check my eligibility" for more details.` : 'Would you like more details about any specific scheme?'}`;
     }
     
     if (q.includes('health') || q.includes('medical') || q.includes('insurance') || q.includes('ayushman')) {
       const healthSchemes = schemes.filter(s => s.category === 'Healthcare');
-      return `Here are healthcare schemes available:\n\n${healthSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Benefits: ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\nI can help you check eligibility for any of these. Just tell me your age, income, and state!`;
+      return `Here are healthcare schemes available:\n\n${healthSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  Benefits: ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user ? `I can check your eligibility for these based on your profile! Just ask me to "check my eligibility".` : 'I can help you check eligibility for any of these. Just tell me your age, income, and state!'}`;
     }
     
     if (q.includes('women') || q.includes('girl') || q.includes('lady')) {
       const womenSchemes = schemes.filter(s => s.category.includes('Women'));
-      return `Here are schemes for women:\n\n${womenSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\nWould you like to know about eligibility for any of these?`;
-    }
-    
-    if (q.includes('eligib') || q.includes('qualify')) {
-      return `To check your eligibility for a scheme, I need some information:\n\n1. **Age** - How old are you?\n2. **State** - Which state do you live in?\n3. **Annual Income** - What's your family's annual income?\n4. **Occupation** - What do you do?\n5. **Category** - General/OBC/SC/ST/EWS?\n\nYou can also set up your profile in the Profile section, and I'll automatically match you with eligible schemes!`;
+      return `Here are schemes for women:\n\n${womenSchemes.map(s => `• **${s.scheme_name}** (${s.state})\n  ${s.benefits.substring(0, 100)}...`).join('\n\n')}\n\n${user && user.gender === 'female' ? `Based on your profile, you might be eligible for these! Ask me to "check my eligibility" to see which ones match.` : 'Would you like to know about eligibility for any of these?'}`;
     }
     
     if (q.includes('document') || q.includes('pdf') || q.includes('legal')) {
@@ -150,7 +195,8 @@ export default function Chat() {
     }
     
     if (q.includes('hello') || q.includes('hi') || q.includes('namaste') || q.includes('namaskar')) {
-      return 'Namaste! 🙏 How can I help you today? You can ask me about government schemes, upload documents for simplification, or check your eligibility for various programs.';
+      const greeting = user ? `Namaste ${user.name}! 🙏` : 'Namaste! 🙏';
+      return `${greeting} How can I help you today? You can ask me about government schemes, upload documents for simplification, or check your eligibility for various programs.`;
     }
     
     if (q.includes('apply') || q.includes('application')) {
@@ -163,10 +209,10 @@ export default function Chat() {
     );
     
     if (matchedScheme) {
-      return `I found a scheme that matches your query:\n\n**${matchedScheme.scheme_name}** (${matchedScheme.state})\n\n📋 **Category:** ${matchedScheme.category}\n💰 **Benefits:** ${matchedScheme.benefits.substring(0, 150)}...\n\n✅ **Eligibility:** ${matchedScheme.eligibility.substring(0, 150)}...\n\nWould you like to see the full details, check your eligibility, or get the step-by-step application guide?`;
+      return `I found a scheme that matches your query:\n\n**${matchedScheme.scheme_name}** (${matchedScheme.state})\n\n📋 **Category:** ${matchedScheme.category}\n💰 **Benefits:** ${matchedScheme.benefits.substring(0, 150)}...\n\n✅ **Eligibility:** ${matchedScheme.eligibility.substring(0, 150)}...\n\n${user ? `Would you like me to check your eligibility for this scheme? Just ask "check my eligibility".` : 'Would you like to see the full details, check your eligibility, or get the step-by-step application guide?'}`;
     }
     
-    return `I understand you're asking about "${query}". Let me help you with that.\n\nI can assist you with:\n• 🏛️ **Government Schemes** - Browse by state, category, or check eligibility\n• 📄 **Document Simplification** - Upload PDFs for AI-powered explanation\n• 🗣️ **Voice Interaction** - Speak in your language\n• 📊 **Eligibility Check** - Get a score based on your profile\n\nCould you please be more specific about what you need help with?`;
+    return `I understand you're asking about "${query}". Let me help you with that.\n\nI can assist you with:\n• 🏛️ **Government Schemes** - Browse by state, category, or check eligibility\n• 📄 **Document Simplification** - Upload PDFs for AI-powered explanation\n• 🗣️ **Voice Interaction** - Speak in your language\n• 📊 **Eligibility Check** - Get a score based on your profile\n\n${!user ? '💡 Tip: Set up your profile first to get personalized scheme recommendations!' : ''}\n\nCould you please be more specific about what you need help with?`;
   };
 
   const handleSend = () => {
