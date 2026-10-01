@@ -112,6 +112,10 @@ async def upload_document(file: UploadFile = File(...)):
     try:
         if file_ext == ".pdf":
             text = extract_text_from_pdf(file_path)
+        elif file_ext in (".txt", ".md"):
+            # Plain text — read directly, no OCR needed
+            from services.ocr_service import extract_text_from_file
+            text = extract_text_from_file(file_path)
         else:
             # OCR for images
             from services.ocr_service import extract_text_from_image

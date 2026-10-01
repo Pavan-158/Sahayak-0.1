@@ -1,2 +1,12 @@
-# Dependencies
-node_modules/
+# Python cache files
+__pycache__/
+*.pyc
+
+# Uploads (user-generated content)
+backend/uploads/
+
+# Logs
+*.log
+
+# Database files (local development artifacts)
+*.db
