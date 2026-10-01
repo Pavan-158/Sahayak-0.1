@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Upload, FileText, Loader2, Volume2, MessageCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { languages } from '../data/mockData';
 import AudioPlayer from '../components/AudioPlayer';
+import { uploadDocument, simplifyDocument, chatWithDocument } from '../services/api';
 
 interface Document {
   id: string;
@@ -19,81 +20,55 @@ export default function DocumentSimplifier() {
   const [loading, setLoading] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setLoading('extracting');
-    
-    // Simulate PDF extraction
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      // Real backend call: uploads the file and extracts text (PDF/OCR)
+      const result = await uploadDocument(file);
       setDocument({
-        id: 'doc-' + Date.now(),
-        name: file.name,
-        originalText: `NOTICE UNDER SECTION 138 OF NEGOTIABLE INSTRUMENTS ACT, 1881
-
-To: Mr. Rajesh Kumar
-Date: 15th January 2026
-
-Subject: Demand Notice for Dishonour of Cheque
-
-Dear Sir,
-
-Under instruction from our client, M/s. Sharma Enterprises Pvt. Ltd., we hereby serve upon you this statutory notice under Section 138 of the Negotiable Instruments Act, 1881.
-
-Our client had supplied goods worth Rs. 5,00,000/- (Rupees Five Lakhs Only) to your firm as per invoice No. SE/2025/1234 dated 1st December 2025. In discharge of the said liability, you issued Cheque No. 456789 dated 15th December 2025 drawn on State Bank of India, Main Branch, Delhi for Rs. 5,00,000/-.
-
-The said cheque was presented for encashment but was returned dishonoured with the endorsement "Funds Insufficient" by the bank on 20th December 2025.
-
-We hereby demand that you pay the said amount of Rs. 5,00,000/- to our client within 15 days from the receipt of this notice. Failing which, our client shall be constrained to initiate criminal proceedings against you under Section 138 of the Negotiable Instruments Act, which is punishable with imprisonment for a term which may extend to two years, or with fine which may extend to twice the amount of the cheque, or with both.`,
+        id: result.id,
+        name: result.filename,
+        originalText: result.text_preview || '',
         simplifiedText: '',
         language: selectedLang,
         status: 'uploaded',
       });
+    } catch (err: any) {
+      setError(`Upload failed: ${err.message}. Is the backend running on port 8000?`);
+    } finally {
       setLoading(null);
-    }, 1500);
+    }
   };
 
-  const handleSimplify = () => {
+  const handleSimplify = async () => {
     if (!document) return;
     setLoading('simplifying');
-    
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      // Real AI API call — the backend generates this response from the
+      // uploaded document's actual text (Gemini / OpenAI-compatible API).
+      const result = await simplifyDocument(document.id, selectedLang);
       setDocument({
         ...document,
-        simplifiedText: `📋 **What This Document Says (Simple Version)**
-
-Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5,00,000 (5 lakh rupees) for goods they delivered to you.
-
-**What happened:**
-• You bought goods worth ₹5 lakhs from them
-• You gave them a cheque (a bank payment paper) for ₹5 lakhs
-• When they tried to cash the cheque, the bank said "Not enough money in the account"
-• So the cheque "bounced" (was rejected by the bank)
-
-**What they want:**
-• They want you to pay them ₹5 lakhs within 15 days
-• They are sending this as a formal legal warning
-
-**What happens if you don't pay:**
-• They can take you to court
-• You could face up to 2 years in jail
-• Or you might have to pay a fine up to ₹10 lakhs (double the amount)
-• Or both jail AND fine
-
-**What you should do:**
-1. Talk to a lawyer immediately
-2. Try to arrange the payment within 15 days
-3. Or try to settle with Sharma Enterprises directly
-4. Don't ignore this notice — it's a serious legal matter
-
-⚠️ **Important:** This is a legal demand notice. Please consult a lawyer for proper advice.`,
+        simplifiedText: result.simplified_text,
+        language: result.language,
         status: 'simplified',
       });
+    } catch (err: any) {
+      setError(`Simplification failed: ${err.message}`);
+    } finally {
       setLoading(null);
-    }, 2000);
+    }
   };
 
   const handleGenerateAudio = () => {
@@ -106,24 +81,29 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
     });
   };
 
-  const handleChat = () => {
-    if (!chatInput.trim()) return;
-    
-    const userMsg = { role: 'user', content: chatInput };
+  const handleChat = async () => {
+    if (!chatInput.trim() || !document || chatLoading) return;
+
+    const question = chatInput.trim();
+    const userMsg = { role: 'user', content: question };
+    const history = chatMessages;
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
-    
-    setTimeout(() => {
-      let response = '';
-      if (chatInput.toLowerCase().includes('pay') || chatInput.toLowerCase().includes('money')) {
-        response = 'Based on the document, you need to pay ₹5,00,000 to Sharma Enterprises within 15 days. If you cannot pay the full amount, consider negotiating a settlement or consulting a lawyer about payment options. Ignoring this notice could lead to criminal proceedings under Section 138 of the NI Act.';
-      } else if (chatInput.toLowerCase().includes('jail') || chatInput.toLowerCase().includes('punishment')) {
-        response = 'The punishment under Section 138 of the Negotiable Instruments Act can be: up to 2 years imprisonment, OR a fine up to twice the cheque amount (₹10 lakhs), OR both. However, this only applies if the case goes to court and you are found guilty. Many cases are settled before reaching court.';
-      } else {
-        response = 'Based on the document analysis: This is a legal demand notice under Section 138 of the Negotiable Instruments Act regarding a bounced cheque of ₹5,00,000. You have 15 days to make the payment. I recommend consulting a lawyer for specific legal advice. Would you like me to explain any specific part of this document?';
-      }
-      setChatMessages(prev => [...prev, { role: 'assistant', content: response }]);
-    }, 1000);
+    setChatLoading(true);
+    setError(null);
+
+    try {
+      // Real AI API call — answer is generated for THIS specific question
+      const result = await chatWithDocument(document.id, question, history);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: result.answer }]);
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Sorry, I couldn't answer that (${err.message}). Please make sure the backend is running.`,
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   return (
@@ -132,6 +112,13 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
         <h1 className="text-3xl font-bold text-gray-900 mb-2">📄 Document Simplifier</h1>
         <p className="text-gray-600">Upload any legal document or PDF and get a simplified explanation in your language</p>
       </div>
+
+      {error && (
+        <div className="mb-6 flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Upload & Controls */}
@@ -288,6 +275,13 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
                       Ask any question about this document
                     </div>
                   )}
+                  {chatLoading && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[80%] px-4 py-2 rounded-2xl text-sm bg-gray-100 text-gray-500 rounded-bl-none flex items-center gap-2">
+                        <Loader2 className="animate-spin" size={14} /> Thinking...
+                      </div>
+                    </div>
+                  )}
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
@@ -306,11 +300,12 @@ Someone named Sharma Enterprises is saying that you (Rajesh Kumar) owe them ₹5
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleChat()}
-                    placeholder="Ask about this document..."
+                    placeholder="Ask anything about this document..."
+                    disabled={chatLoading}
                     className="input-field flex-1"
                   />
-                  <button onClick={handleChat} className="btn-primary px-4">
-                    Send
+                  <button onClick={handleChat} disabled={chatLoading} className="btn-primary px-4 disabled:opacity-50">
+                    {chatLoading ? <Loader2 size={16} className="animate-spin" /> : 'Send'}
                   </button>
                 </div>
               </div>
