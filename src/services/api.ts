@@ -7,7 +7,22 @@
 const API_BASE = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, options);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, options);
+  } catch (err) {
+    // fetch() itself threw: network down, CORS preflight rejected, or bad TLS/DNS.
+    // The browser hides the real reason ("Failed to fetch"), so log the details
+    // and surface a message that points at the most common cause.
+    console.error(
+      `[api] Network error calling ${API_BASE}${path}.`,
+      "Check: (1) backend running on port 8000? (2) Open http://localhost:8000/api/health in this browser tab.",
+      err,
+    );
+    throw new Error(
+      `Could not reach the backend at ${API_BASE}. Make sure it is running (uvicorn main:app --port 8000) — see the browser console for details.`,
+    );
+  }
   if (!res.ok) {
     let detail = "";
     try {
