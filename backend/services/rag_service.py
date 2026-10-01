@@ -105,7 +105,8 @@ class RAGPipeline:
             print("⚠️ FAISS not installed. RAG will use simple similarity.")
             self.indices[doc_id] = None
     
-    def query(self, question: str, doc_id: str, top_k: int = 3) -> str:
+    def query(self, question: str, doc_id: str, top_k: int = 3,
+              history: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Query the RAG pipeline with a question.
         Retrieves relevant chunks and generates an answer.
@@ -124,10 +125,10 @@ class RAGPipeline:
         # Combine context
         context = "\n\n".join(relevant_chunks)
         
-        # Generate answer using Gemini
+        # Generate answer using the live AI API (Gemini / OpenAI-compatible)
         try:
             from services.llm_service import chat_with_document
-            return chat_with_document(context, question)
+            return chat_with_document(context, question, history=history)
         except Exception as e:
             # Fallback: Return relevant chunks as answer
             return f"Based on the document:\n\n{context[:1000]}"

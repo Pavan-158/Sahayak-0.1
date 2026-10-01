@@ -72,13 +72,14 @@ def generate_audio(text: str, output_path: str, language: str = "hi") -> str:
     
     if _tts_pipeline is not None:
         try:
-            # Generate speech
+            # Generate speech (Parler-TTS outputs wav)
             result = _tts_pipeline(text)
-            
-            # Save audio
+
+            # Ensure the file we write matches the requested .wav output path
+            wav_path = output_path if output_path.endswith(".wav") else output_path + ".wav"
             import soundfile as sf
-            sf.write(output_path, result["audio"], samplerate=result["sampling_rate"])
-            return output_path
+            sf.write(wav_path, result["audio"], samplerate=result["sampling_rate"])
+            return wav_path
         except Exception as e:
             print(f"TTS generation error: {e}")
     
@@ -93,8 +94,10 @@ def generate_audio(text: str, output_path: str, language: str = "hi") -> str:
         }
         
         tts = gTTS(text=text, lang=lang_map.get(language, "en"), slow=False)
-        # gTTS outputs mp3, convert path
-        mp3_path = output_path.replace(".wav", ".mp3")
+        # gTTS outputs mp3 — write directly to an .mp3 path so the returned
+        # path always exists (previously saving mp3 content to a .wav path
+        # produced a corrupt/missing file).
+        mp3_path = os.path.splitext(output_path)[0] + ".mp3"
         tts.save(mp3_path)
         return mp3_path
     except ImportError:
@@ -107,18 +110,19 @@ def generate_audio(text: str, output_path: str, language: str = "hi") -> str:
         import numpy as np
         import wave
         
+        wav_path = output_path if output_path.endswith(".wav") else output_path + ".wav"
         # Create 1 second of silence
         sample_rate = 16000
         duration = 1
         samples = np.zeros(sample_rate * duration, dtype=np.int16)
         
-        with wave.open(output_path, 'w') as wav_file:
+        with wave.open(wav_path, 'w') as wav_file:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
             wav_file.setframerate(sample_rate)
             wav_file.writeframes(samples.tobytes())
         
-        return output_path
+        return wav_path
     except Exception as e:
         print(f"Silent audio fallback error: {e}")
         return ""
